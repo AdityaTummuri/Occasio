@@ -228,7 +228,20 @@ make cov    # with coverage
 
 ## Verification
 
-See the end of this section for the commands and their recorded output.
+Recorded on 2026-10-21 (Linux, Python 3.12.3):
+
+| Check | Command | Result |
+|---|---|---|
+| Single branch | `git branch -a` | only `main` (plus `origin/main`) |
+| Size | `make size` | tracked files **≈ 272 KB** (screenshot is 33 KB); well under the 2 MB target |
+| No secrets in history | `git log --all -p \| grep -iE "sk-ant\|api_key="` | only empty placeholders, variable names and the test value `test-key`; no real key |
+| Lint | `ruff check .` and `ruff format --check .` | `All checks passed!` / `43 files already formatted` |
+| Types | `mypy src/occasio` (strict on `core/`) | `Success: no issues found in 30 source files` |
+| Tests | `pytest -q --cov=occasio` | **170 passed**; coverage 99% `core/`, 97% overall |
+| Fresh clone | `git clone … && make install && make test && make run` in a clean venv | install OK, 170 passed, server up on :8000 |
+| No API key | `env -u ANTHROPIC_API_KEY make run` | `/healthz` → `ai_enabled: false`; plan, ideas (`source: fallback`), explanation and export all work |
+| Accessibility | axe-core 4.14 + keyboard-only script | 0 violations on 5 screens; full flow by keyboard |
+| Public repository | GitHub settings | **To do by the repository owner** |
 
 ## License
 
