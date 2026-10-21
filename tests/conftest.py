@@ -43,3 +43,75 @@ def make_profile() -> ProfileFactory:
         return EventProfile.model_validate(data)
 
     return factory
+
+
+# ---- AI mocking ------------------------------------------------------------
+
+import json  # noqa: E402
+import socket  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from occasio.ai.client import AIClient  # noqa: E402
+from occasio.core.planner import build_plan  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Fail loudly if any test tries to open a real network connection."""
+
+    def guard(*args, **kwargs):
+        raise RuntimeError("network access is disabled in tests")
+
+    monkeypatch.setattr(socket.socket, "connect", guard)
+    monkeypatch.setattr(socket, "create_connection", guard)
+
+
+class FakeSDK:
+    """Stands in for ``anthropic.Anthropic``; records calls, returns canned responses."""
+
+    def __init__(self, *responses: Any) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict[str, Any]] = []
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        item = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        if isinstance(item, Exception):
+            raise item
+        if isinstance(item, SimpleNamespace):
+            return item
+        text = item if isinstance(item, str) else json.dumps(item)
+        return SimpleNamespace(
+            stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)]
+        )
+
+
+@pytest.fixture
+def fake_ai():
+    def factory(*responses: Any) -> tuple[AIClient, FakeSDK]:
+        sdk = FakeSDK(*responses)
+        return AIClient(api_key="test-key", model="test-model", sdk=sdk), sdk
+
+    return factory
+
+
+@pytest.fixture
+def disabled_ai() -> AIClient:
+    return AIClient(api_key="", model="test-model")
+
+
+@pytest.fixture
+def sample_plan(make_profile, today):
+    return build_plan(
+        make_profile(
+            event_type="wedding",
+            guest_count=200,
+            budget_minor=8_00_000_00,
+            setting="outdoor",
+            event_date=date(2026, 7, 18),
+            dietary=["vegetarian"],
+            vibe="Kerala backwaters, relaxed",
+        ),
+        today=today,
+    )
