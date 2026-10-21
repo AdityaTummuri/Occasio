@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from occasio.core.budget import label
+from occasio.core.knowledge import DEFAULT_DATA_DIR
 from occasio.core.models import (
     Change,
     ChangeKind,
@@ -28,9 +30,14 @@ def apply_changes(profile: EventProfile, updates: dict[str, Any]) -> EventProfil
     return EventProfile.model_validate(merged)
 
 
-def replan(old: Plan, updates: dict[str, Any], today: date | None = None) -> tuple[Plan, PlanDiff]:
+def replan(
+    old: Plan,
+    updates: dict[str, Any],
+    today: date | None = None,
+    data_dir: Path = DEFAULT_DATA_DIR,
+) -> tuple[Plan, PlanDiff]:
     profile = apply_changes(old.profile, updates)
-    new = build_plan(profile, today=today)
+    new = build_plan(profile, today=today, data_dir=data_dir)
 
     done = {t.id for t in old.checklist.items if t.status is TaskStatus.DONE}
     for task in new.checklist.items:

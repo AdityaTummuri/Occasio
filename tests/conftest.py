@@ -115,3 +115,63 @@ def sample_plan(make_profile, today):
         ),
         today=today,
     )
+
+
+# ---- API -------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from occasio.api.app import create_app  # noqa: E402
+from occasio.config import Settings  # noqa: E402
+from occasio.core.knowledge import DEFAULT_DATA_DIR  # noqa: E402
+from occasio.storage.repo import PlanRepository  # noqa: E402
+
+
+def _settings(tmp_path: Path) -> Settings:
+    return Settings(
+        anthropic_api_key="",
+        model="test-model",
+        ai_enabled=False,
+        db_path=tmp_path / "test.db",
+        data_dir=DEFAULT_DATA_DIR,
+    )
+
+
+@pytest.fixture
+def make_client(tmp_path):
+    def factory(ai: AIClient | None = None) -> TestClient:
+        settings = _settings(tmp_path)
+        app = create_app(settings, ai=ai, repo=PlanRepository(":memory:"))
+        return TestClient(app)
+
+    return factory
+
+
+@pytest.fixture
+def client(make_client) -> TestClient:
+    return make_client()
+
+
+@pytest.fixture
+def profile_json() -> dict[str, Any]:
+    future = date.today() + timedelta(weeks=30)
+    return {
+        "event_type": "wedding",
+        "event_date": future.isoformat(),
+        "guest_count": 120,
+        "budget_minor": 10_00_000_00,
+        "currency": "INR",
+        "location": "Kochi",
+        "setting": "indoor",
+        "vibe": "relaxed",
+        "dietary": ["vegetarian"],
+    }
+
+
+@pytest.fixture
+def created(client, profile_json) -> dict[str, Any]:
+    response = client.post("/api/plans", json=profile_json)
+    assert response.status_code == 201, response.text
+    return response.json()
