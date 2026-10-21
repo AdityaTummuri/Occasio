@@ -1,7 +1,7 @@
 VENV ?= .venv
 PY := $(VENV)/bin/python
 
-.PHONY: install run test lint format typecheck size demo
+.PHONY: install run test lint format typecheck size demo cov
 
 install:
 	python3 -m venv $(VENV)
@@ -29,3 +29,9 @@ size:
 	@echo "Working tree (incl. ignored caches/venv):"; du -sh --exclude=.git .
 	@echo "Tracked files:"; git ls-files -z | xargs -0 du -cb | tail -1
 	git count-objects -vH
+
+demo:
+	$(PY) -m occasio.demo
+
+cov:
+	$(PY) -m pytest -q --cov=occasio --cov-report=term-missing
