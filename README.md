@@ -1,2 +1,3 @@
 # Occasio
-GenAI Event Planning Assistant
+
+GenAI event planning assistant. Work in progress — see `PLAN.md`.
