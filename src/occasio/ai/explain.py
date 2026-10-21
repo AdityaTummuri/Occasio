@@ -53,7 +53,8 @@ def _facts(plan: Plan) -> dict[str, object]:
         "rule_tasks": [
             {"title": t.title, "why": t.reason}
             for t in plan.checklist.items
-            if not t.reason.startswith("Standard for")
+            # Must-have titles are user text; keep them out of the trusted facts block.
+            if not t.reason.startswith("Standard for") and not t.id.startswith("must_have_")
         ],
         "risks": [{"message": r.message, "why": r.reason} for r in plan.risks],
     }

@@ -71,13 +71,15 @@ class PlanRepository:
     def update(self, plan_id: str, plan: Plan) -> StoredPlan | None:
         now = _now()
         with self._lock, self._conn:
-            cur = self._conn.execute(
-                "UPDATE plans SET data = ?, updated_at = ? WHERE id = ?",
+            row = self._conn.execute(
+                "UPDATE plans SET data = ?, updated_at = ? WHERE id = ? RETURNING created_at",
                 (plan.model_dump_json(), now.isoformat(), plan_id),
-            )
-        if cur.rowcount == 0:
+            ).fetchone()
+        if row is None:
             return None
-        return self.get(plan_id)
+        return StoredPlan(
+            id=plan_id, created_at=datetime.fromisoformat(row[0]), updated_at=now, plan=plan
+        )
 
     def close(self) -> None:
         with self._lock:

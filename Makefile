@@ -26,5 +26,6 @@ typecheck:
 	$(PY) -m mypy src/occasio
 
 size:
-	du -sh --exclude=.git .
+	@echo "Working tree (incl. ignored caches/venv):"; du -sh --exclude=.git .
+	@echo "Tracked files:"; git ls-files -z | xargs -0 du -cb | tail -1
 	git count-objects -vH
