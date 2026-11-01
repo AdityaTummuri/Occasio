@@ -122,6 +122,7 @@ def create_app(
         response = await call_next(request)
         docs = request.url.path in ("/docs", "/redoc")
         response.headers["content-security-policy"] = DOCS_CSP if docs else CSP
+        response.headers["x-req-path"] = request.url.path
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if request.url.path.startswith("/api/"):
