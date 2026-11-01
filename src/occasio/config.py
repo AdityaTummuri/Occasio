@@ -53,11 +53,12 @@ def load_settings() -> Settings:
     if len(model) > 100 or not all(c.isalnum() or c in "-._:@" for c in model):
         raise ValueError("OCCASIO_MODEL contains unexpected characters")
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
+    default_db = "/tmp/occasio.db" if os.getenv("VERCEL") else "occasio.db"  # noqa: S108
     return Settings(
         gemini_api_key=gemini_key,
         model=model,
         ai_enabled=_bool("OCCASIO_AI_ENABLED", True),
-        db_path=Path(os.getenv("OCCASIO_DB_PATH", "").strip() or "occasio.db"),
+        db_path=Path(os.getenv("OCCASIO_DB_PATH", "").strip() or default_db),
         data_dir=Path(os.getenv("OCCASIO_DATA_DIR", "").strip() or DEFAULT_DATA_DIR),
     )
 

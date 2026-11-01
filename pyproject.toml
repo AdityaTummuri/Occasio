@@ -59,3 +59,6 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = "occasio.core.*"
 strict = true
+
+[tool.vercel]
+entrypoint = "main.py"
