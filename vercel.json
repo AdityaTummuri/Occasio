@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.py" }
+  ],
+  "env": {
+    "OCCASIO_DB_PATH": "/tmp/occasio.db"
+  }
+}
+

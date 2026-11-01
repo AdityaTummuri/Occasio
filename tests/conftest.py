@@ -67,14 +67,14 @@ def no_network(monkeypatch):
 
 
 class FakeSDK:
-    """Stands in for ``anthropic.Anthropic``; records calls, returns canned responses."""
+    """Stands in for Google GenAI client; records calls, returns canned responses."""
 
     def __init__(self, *responses: Any) -> None:
         self.responses = list(responses)
         self.calls: list[dict[str, Any]] = []
-        self.messages = self
+        self.models = self
 
-    def create(self, **kwargs: Any) -> Any:
+    def generate_content(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
         item = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
         if isinstance(item, Exception):
@@ -83,7 +83,13 @@ class FakeSDK:
             return item
         text = item if isinstance(item, str) else json.dumps(item)
         return SimpleNamespace(
-            stop_reason="end_turn", content=[SimpleNamespace(type="text", text=text)]
+            text=text,
+            candidates=[
+                SimpleNamespace(
+                    finish_reason="STOP",
+                    content=SimpleNamespace(parts=[SimpleNamespace(text=text)]),
+                )
+            ],
         )
 
 
@@ -131,7 +137,7 @@ from occasio.storage.repo import PlanRepository  # noqa: E402
 
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
-        anthropic_api_key="",
+        gemini_api_key="",
         model="test-model",
         ai_enabled=False,
         db_path=tmp_path / "test.db",

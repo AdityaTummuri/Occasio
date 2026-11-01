@@ -1,7 +1,7 @@
 # Occasio architecture
 
 Occasio is a **hybrid** planner. A deterministic, pure-Python engine makes every
-decision about money, dates and tasks. An optional Claude layer only handles
+decision about money, dates and tasks. An optional Google Gemini layer only handles
 language: parsing free text, suggesting ideas and explaining the engine's
 decisions. If the AI layer is off or fails, templates built from the engine's
 `reason` fields take its place.
@@ -39,7 +39,7 @@ flowchart LR
         FB["fallback.py<br/>templates from engine reasons"]
     end
 
-    CL -->|structured JSON output| CLAUDE(["Claude API"])
+    CL -->|structured JSON output| GEMINI(["Google Gemini API"])
     AI -.reads plan, never writes numbers.-> ENGINE
 ```
 
@@ -48,7 +48,7 @@ flowchart LR
 | Layer | May import | Must not import | Enforced by |
 |---|---|---|---|
 | `core/` | stdlib, pydantic | `ai/`, `api/`, `storage/`, any network library | `tests/test_architecture.py` |
-| `ai/` | `core/`, `config`, `anthropic` | `api/`, `storage/` | review |
+| `ai/` | `core/`, `config`, `google-genai` | `api/`, `storage/` | review |
 | `storage/` | `core/models` | `ai/`, `api/` | review |
 | `api/` | everything | — | — |
 
@@ -83,6 +83,6 @@ whole currency units so the lines always add up to the total exactly.
 2. `POST /api/plans/{id}/replan` merges a partial profile, rebuilds, carries
    checklist progress over, adds re-plan follow-up tasks and returns a structured diff.
 3. AI endpoints read the stored plan, send engine facts plus delimited user text
-   to Claude with a JSON schema, validate the reply with Pydantic, and fall back to
+   to Gemini with a JSON schema, validate the reply with Pydantic, and fall back to
    templates on any failure. The explanation is also checked so that it contains
    no numbers that are not already in the plan.

@@ -4,7 +4,7 @@ Occasio turns a few facts about an event (type, date, guests, budget, place, pre
 into a plan you can act on: a budget split, a milestone timeline worked back from the date,
 a vendor checklist, risk flags and personalised ideas. When something changes ("the budget
 dropped 20%", "the guest list grew to 180") it re-plans and shows exactly what moved.
-A **deterministic rules engine** makes every decision about money, dates and tasks; **Claude**
+A **deterministic rules engine** makes every decision about money, dates and tasks; **Google Gemini**
 only handles language. It runs fully without an API key.
 
 ![Occasio plan view: summary, risk callouts and budget breakdown](docs/screenshot.png)
@@ -28,7 +28,7 @@ forgetting. She wants a plan she can act on, and she wants it to adapt when thin
 | Layer | Responsibility | Why |
 |---|---|---|
 | **Deterministic engine** (`src/occasio/core/`, pure Python, no LLM, no network) | Budget allocation, timeline built back from the date, checklist by event type and scale, feasibility and risk checks, re-planning with a diff | Repeatable, testable, auditable, free and offline. All of the *decision making* happens here. |
-| **GenAI layer** (`src/occasio/ai/`, Claude with JSON-schema structured output) | Free text → form fields, personalised theme/menu/decor ideas, plain-language explanation of the engine's decisions | Plays to what LLMs are good at: language, creativity, mapping messy input to structure. |
+| **GenAI layer** (`src/occasio/ai/`, Google Gemini with JSON-schema structured output) | Free text → form fields, personalised theme/menu/decor ideas, plain-language explanation of the engine's decisions | Plays to what LLMs are good at: language, creativity, mapping messy input to structure. |
 
 The LLM **never decides the numbers.** Every budget line, milestone, task and risk has a
 `reason` string. The UI shows these reasons ("Why this amount?"), and they are also the only
@@ -58,7 +58,7 @@ flowchart LR
     API --> ENGINE["core/ engine<br/>budget · timeline · checklist · risks · replan"]
     API --> DB[("SQLite")]
     API --> AI["ai/ layer<br/>prompts · schemas · cache · fallback"]
-    AI -->|structured JSON| CLAUDE(["Claude API"])
+    AI -->|structured JSON| GEMINI(["Google Gemini API"])
     AI -.reads plan facts, never writes numbers.-> ENGINE
     ENGINE --> DATA["data/*.json<br/>illustrative defaults"]
 ```
@@ -66,12 +66,12 @@ flowchart LR
 ## 3. How it works
 
 1. **Intake.** Fill the form, or describe the event in words and press *Autofill*. With AI
-   on, Claude extracts the fields against a JSON schema. With AI off, a regex parser does a
+   on, Google Gemini extracts the fields against a JSON schema. With AI off, a regex parser does a
    best-effort job ("200 people, December, Kochi, ~8 lakh" works). Budget and date always come
    back as `suggested_*` values, are highlighted, and must be confirmed by the user.
 2. **Plan.** `POST /api/plans` validates the profile and runs `build_plan()`: knowledge tables
    → budget rules → timeline → checklist → risks. The result is stored in SQLite.
-3. **Ideas / explanation.** The server sends Claude only engine facts (`<plan_facts>`) and the
+3. **Ideas / explanation.** The server sends Google Gemini only engine facts (`<plan_facts>`) and the
    user's own text inside `<user_data>` delimiters. The reply is validated by Pydantic
    (`extra="forbid"`, length limits). The explanation is rejected if it contains any number
    that is not already in the plan.
@@ -109,7 +109,7 @@ Requires Python 3.11+.
 
 ```bash
 make install          # creates .venv and installs the package with dev tools
-cp .env.example .env  # optional: add ANTHROPIC_API_KEY to enable the AI layer
+cp .env.example .env  # optional: add GEMINI_API_KEY to enable the AI layer
 make run              # http://127.0.0.1:8000
 make test             # pytest
 make lint             # ruff check + ruff format --check
@@ -118,13 +118,13 @@ make demo             # seeds one sample plan per event type and prints their UR
 make size             # repository size report
 ```
 
-**No API key is needed.** Without `ANTHROPIC_API_KEY`, every feature works using the engine
+**No API key is needed.** Without `GEMINI_API_KEY`, every feature works using the engine
 and template fallbacks.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | empty | Enables the AI layer when set |
-| `OCCASIO_MODEL` | `claude-haiku-5-5` | Small, inexpensive model by default; any current model id works |
+| `GEMINI_API_KEY` | empty | Enables the AI layer when set |
+| `OCCASIO_MODEL` | `gemini-3.1-flash-lite` | Fast, lightweight model by default; any current model id works |
 | `OCCASIO_AI_ENABLED` | `true` | Set `false` to force fallback mode even with a key |
 | `OCCASIO_DB_PATH` | `occasio.db` | SQLite file (git-ignored) |
 | `OCCASIO_DATA_DIR` | `./data` | Planning data tables |
@@ -208,7 +208,7 @@ make cov    # with coverage
 - **170 tests**, all offline. An autouse fixture blocks sockets, so a test that reaches the
   network fails.
 - Coverage: **99% on `core/`**, 97% overall.
-- The Anthropic SDK is replaced by a `FakeSDK` that records calls and returns canned
+- The Google GenAI SDK is replaced by a `FakeSDK` that records calls and returns canned
   responses: valid, malformed, extra keys, refusals, truncation and API errors.
 - Areas covered: every engine rule and its boundaries (exactly 150 guests, exactly 6 and 16
   weeks), zero/negative budgets, allocations summing exactly to the total, replan diffs and
@@ -239,7 +239,7 @@ Recorded on 2026-10-21 (Linux, Python 3.12.3):
 | Types | `mypy src/occasio` (strict on `core/`) | `Success: no issues found in 30 source files` |
 | Tests | `pytest -q --cov=occasio` | **170 passed**; coverage 99% `core/`, 97% overall |
 | Fresh clone | `git clone … && make install && make test && make run` in a clean venv | install OK, 170 passed, server up on :8000 |
-| No API key | `env -u ANTHROPIC_API_KEY make run` | `/healthz` → `ai_enabled: false`; plan, ideas (`source: fallback`), explanation and export all work |
+| No API key | `env -u GEMINI_API_KEY make run` | `/healthz` → `ai_enabled: false`; plan, ideas (`source: fallback`), explanation and export all work |
 | Accessibility | axe-core 4.14 + keyboard-only script | 0 violations on 5 screens; full flow by keyboard |
 | Public repository | GitHub settings | **To do by the repository owner** |
 

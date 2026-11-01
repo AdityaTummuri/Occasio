@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 
 from occasio.core.knowledge import DEFAULT_DATA_DIR
 
-# Small, inexpensive model by default; override with OCCASIO_MODEL.
-# Current model list: https://docs.claude.com/en/docs/about-claude/models
-DEFAULT_MODEL = "claude-haiku-5-5"
+# Fast, inexpensive model by default; override with OCCASIO_MODEL.
+# Google Gemini model list: https://ai.google.dev/gemini-api/docs/models/gemini
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
 
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
@@ -32,7 +32,7 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    anthropic_api_key: str
+    gemini_api_key: str
     model: str
     ai_enabled: bool
     db_path: Path
@@ -40,10 +40,10 @@ class Settings:
 
     @property
     def ai_available(self) -> bool:
-        return self.ai_enabled and bool(self.anthropic_api_key)
+        return self.ai_enabled and bool(self.gemini_api_key)
 
     def __repr__(self) -> str:  # never print the key
-        key = "set" if self.anthropic_api_key else "unset"
+        key = "set" if self.gemini_api_key else "unset"
         return f"Settings(model={self.model!r}, ai_enabled={self.ai_enabled}, key={key})"
 
 
@@ -52,8 +52,9 @@ def load_settings() -> Settings:
     model = os.getenv("OCCASIO_MODEL", "").strip() or DEFAULT_MODEL
     if len(model) > 100 or not all(c.isalnum() or c in "-._:@" for c in model):
         raise ValueError("OCCASIO_MODEL contains unexpected characters")
+    gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
     return Settings(
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
+        gemini_api_key=gemini_key,
         model=model,
         ai_enabled=_bool("OCCASIO_AI_ENABLED", True),
         db_path=Path(os.getenv("OCCASIO_DB_PATH", "").strip() or "occasio.db"),

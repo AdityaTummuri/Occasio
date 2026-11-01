@@ -1,7 +1,7 @@
-"""Thin wrapper around the Anthropic SDK.
+"""Thin wrapper around the Google GenAI SDK (Gemini).
 
 * Disabled (returns ``None``) when there is no key or ``OCCASIO_AI_ENABLED=false``.
-* 20 s timeout per request; the SDK retries transient errors (429/5xx/connection) up to 2x.
+* 20 s timeout per request.
 * ``max_tokens`` is capped per task and oversized prompts are refused (cost guard).
 * Responses are constrained with JSON-schema structured output, then parsed.
 * A bounded in-memory LRU cache keyed by a hash of (model, task, prompts) avoids
@@ -20,14 +20,14 @@ from collections import OrderedDict
 from threading import Lock
 from typing import Any
 
-import anthropic
+from google import genai
+from google.genai import errors, types
 
 from occasio.config import Settings
 
 log = logging.getLogger("occasio.ai")
 
 TIMEOUT_SECONDS = 20.0
-MAX_RETRIES = 2
 MAX_PROMPT_CHARS = 12_000
 MAX_TOKENS = {"ideas": 1200, "intake": 500, "explain": 900}
 CACHE_SIZE = 256
@@ -40,7 +40,7 @@ class AIClient:
         api_key: str,
         model: str,
         enabled: bool = True,
-        sdk: Any = None,  # injected in tests; defaults to anthropic.Anthropic
+        sdk: Any = None,  # injected in tests; defaults to genai.Client
         cache_size: int = CACHE_SIZE,
     ) -> None:
         self.model = model
@@ -54,13 +54,14 @@ class AIClient:
     @classmethod
     def from_settings(cls, settings: Settings) -> AIClient:
         return cls(
-            api_key=settings.anthropic_api_key, model=settings.model, enabled=settings.ai_enabled
+            api_key=settings.gemini_api_key, model=settings.model, enabled=settings.ai_enabled
         )
 
     def _client(self) -> Any:
         if self._sdk is None:
-            self._sdk = anthropic.Anthropic(
-                api_key=self._api_key, timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES
+            self._sdk = genai.Client(
+                api_key=self._api_key,
+                http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS),
             )
         return self._sdk
 
@@ -84,28 +85,39 @@ class AIClient:
 
         started = time.monotonic()
         try:
-            response = self._client().messages.create(
-                model=self.model,
-                max_tokens=MAX_TOKENS.get(task, 500),
-                system=system,
-                messages=[{"role": "user", "content": user}],
-                output_config={"format": {"type": "json_schema", "schema": schema}},
-                timeout=TIMEOUT_SECONDS,
+            config = types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type="application/json",
+                response_schema=schema,
+                max_output_tokens=MAX_TOKENS.get(task, 500),
             )
-        except anthropic.APIError as exc:
+            response = self._client().models.generate_content(
+                model=self.model,
+                contents=user,
+                config=config,
+            )
+        except errors.APIError as exc:
             log.warning("ai.%s failed: %s", task, type(exc).__name__)
+            return None
+        except Exception as exc:
+            log.warning("ai.%s unexpected error: %s", task, type(exc).__name__)
             return None
 
         elapsed = time.monotonic() - started
-        stop = getattr(response, "stop_reason", None)
-        if stop not in (None, "end_turn"):
-            log.warning("ai.%s unusable stop_reason=%s", task, stop)
-            return None
-        text = "".join(
-            getattr(block, "text", "")
-            for block in getattr(response, "content", [])
-            if getattr(block, "type", None) == "text"
-        )
+        candidates = getattr(response, "candidates", None)
+        if candidates:
+            finish_reason = getattr(candidates[0], "finish_reason", None)
+            if finish_reason is not None:
+                reason_str = str(finish_reason).upper()
+                if "STOP" not in reason_str and finish_reason not in (None, "STOP"):
+                    log.warning("ai.%s unusable finish_reason=%s", task, finish_reason)
+                    return None
+
+        text = getattr(response, "text", "") or ""
+        if not text and candidates:
+            parts = getattr(getattr(candidates[0], "content", None), "parts", [])
+            text = "".join(getattr(p, "text", "") for p in parts if getattr(p, "text", None))
+
         try:
             data = json.loads(text)
         except ValueError:

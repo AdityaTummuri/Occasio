@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
-import anthropic
-import httpx
 import pytest
+from google.genai import errors
 
 from occasio.ai import explain, ideas, intake, prompts
 from occasio.ai.client import MAX_TOKENS, AIClient
@@ -29,12 +28,12 @@ def test_client_disabled_without_key(disabled_ai):
 
 
 def test_ai_enabled_flag_false_disables_even_with_key(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key-123")
     monkeypatch.setenv("OCCASIO_AI_ENABLED", "false")
     settings = load_settings()
     assert not settings.ai_available
     assert not AIClient.from_settings(settings).enabled
-    assert "sk-test" not in repr(settings)
+    assert "test-key-123" not in repr(settings)
 
 
 def test_settings_reject_bad_bool_and_model(monkeypatch):
@@ -54,11 +53,11 @@ def test_request_shape(fake_ai):
     }
     call = sdk.calls[0]
     assert call["model"] == "test-model"
-    assert call["max_tokens"] == MAX_TOKENS["ideas"]
-    assert call["system"] == "sys"
-    assert call["messages"] == [{"role": "user", "content": "usr"}]
-    assert call["output_config"]["format"]["type"] == "json_schema"
-    assert call["timeout"] == 20.0
+    assert call["contents"] == "usr"
+    assert call["config"].system_instruction == "sys"
+    assert call["config"].max_output_tokens == MAX_TOKENS["ideas"]
+    assert call["config"].response_mime_type == "application/json"
+    assert call["config"].response_schema == {"type": "object"}
 
 
 def test_cache_hits_and_is_bounded(fake_ai):
@@ -73,7 +72,7 @@ def test_cache_hits_and_is_bounded(fake_ai):
 
 
 def test_api_error_returns_none(fake_ai):
-    err = anthropic.APIConnectionError(request=httpx.Request("POST", "https://example.invalid"))
+    err = errors.APIError(500, {"message": "Service unavailable"})
     client, _ = fake_ai(err)
     assert client.complete_json("ideas", system="s", user="u", schema={}) is None
 
@@ -83,10 +82,8 @@ def test_api_error_returns_none(fake_ai):
     [
         "not json",
         "[1, 2]",
-        SimpleNamespace(
-            stop_reason="max_tokens", content=[SimpleNamespace(type="text", text="{}")]
-        ),
-        SimpleNamespace(stop_reason="refusal", content=[]),
+        SimpleNamespace(candidates=[SimpleNamespace(finish_reason="MAX_TOKENS")], text="{}"),
+        SimpleNamespace(candidates=[SimpleNamespace(finish_reason="SAFETY")], text=""),
     ],
 )
 def test_unusable_responses_return_none(fake_ai, response):
@@ -135,9 +132,9 @@ def test_ideas_from_ai_are_validated(sample_plan, fake_ai):
     result = ideas.generate(sample_plan, client)
     assert result.source == "ai"
     assert [i.title for i in result.ideas] == ["Idea 0", "Idea 1", "Idea 2"]
-    user_turn = sdk.calls[0]["messages"][0]["content"]
+    user_turn = sdk.calls[0]["contents"]
     assert "Kerala backwaters" in user_turn.split("<user_data>")[1]
-    assert "Kerala backwaters" not in sdk.calls[0]["system"]
+    assert "Kerala backwaters" not in sdk.calls[0]["config"].system_instruction
 
 
 @pytest.mark.parametrize(

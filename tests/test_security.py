@@ -63,8 +63,8 @@ def test_user_text_never_reaches_system_prompts(sample_plan, fake_ai, today):
     intake.parse(evil, client, today=today)
     assert len(sdk.calls) == 3
     for call in sdk.calls:
-        assert "SYSTEM OVERRIDE" not in call["system"]
-        content = call["messages"][0]["content"]
+        assert "SYSTEM OVERRIDE" not in call["config"].system_instruction
+        content = call["contents"]
         if "SYSTEM OVERRIDE" in content:
             # Only ever inside the user-data block, which cannot be closed early.
             inner = content.split("<user_data>", 1)[1]

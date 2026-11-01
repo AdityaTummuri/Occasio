@@ -1,6 +1,6 @@
 # Occasio — GenAI Event Planning Assistant
 
-**Project plan and execution guide.** Intended to be handed, phase by phase, to Claude Opus (medium effort) as the coding agent. Each phase has a copy-paste prompt, acceptance criteria, and a verification step. Do not skip the verification steps — they are what keeps the repo honest.
+**Project plan and execution guide.** Intended to be handed, phase by phase, to Google Gemini as the coding agent. Each phase has a copy-paste prompt, acceptance criteria, and a verification step. Do not skip the verification steps — they are what keeps the repo honest.
 
 ---
 
@@ -18,7 +18,7 @@ Most GenAI planners are a chat box that dumps a generic list. Occasio is a **hyb
 | Layer | Responsibility | Why |
 |---|---|---|
 | **Deterministic planning engine** (pure Python, no LLM) | Budget allocation, timeline/milestone generation backwards from the event date, vendor checklist by event type and scale, feasibility checks, re-planning deltas | Repeatable, testable, auditable, zero cost, works offline. This is where the *logical decision making* lives. |
-| **GenAI layer** (Claude API, structured JSON output) | Personalised theme/idea generation, vendor brief & outreach drafts, natural-language intake ("200 people, December, Kochi, ~8 lakh"), explaining *why* the engine made a decision, conflict resolution suggestions | What LLMs are good at: language, creativity, mapping messy input to structured fields. |
+| **GenAI layer** (Google Gemini API, structured JSON output) | Personalised theme/idea generation, vendor brief & outreach drafts, natural-language intake ("200 people, December, Kochi, ~8 lakh"), explaining *why* the engine made a decision, conflict resolution suggestions | What LLMs are good at: language, creativity, mapping messy input to structured fields. |
 
 The LLM **never** decides the numbers. The engine produces the plan; the LLM decorates, explains, and translates. If the API key is missing or the call fails, the app degrades gracefully to engine-only output with template text — it never breaks. This matters for evaluators who run it without a key.
 
@@ -47,7 +47,7 @@ Out of scope for v1: real vendor marketplaces, payments, multi-user collaboratio
 |---|---|---|
 | Language | Python 3.11+ | Readable, strong testing culture, small repo |
 | API | FastAPI + Pydantic v2 | Automatic validation (security), typed models (code quality), OpenAPI docs for free |
-| LLM | `anthropic` Python SDK, model ID read from env (`OCCASIO_MODEL`); use a small/cheap model by default | Efficiency. **Do not hardcode a model name from memory** — check the current model list at https://docs.claude.com/en/docs/about-claude/models before setting the default |
+| LLM | `google-genai` Python SDK, model ID read from env (`OCCASIO_MODEL`); use a fast/cheap model by default | Efficiency. **Do not hardcode a model name from memory** — check the current model list at https://ai.google.dev/gemini-api/docs/models/gemini before setting the default |
 | Storage | SQLite via `sqlite3` stdlib (or SQLModel if justified) | No server, file ignored by git |
 | Frontend | Static HTML + CSS + vanilla JS served by FastAPI | No `node_modules`, no build step, repo stays tiny, full control over accessibility |
 | Tests | `pytest`, `httpx` test client, LLM calls mocked | Testing tier |
@@ -129,7 +129,7 @@ General instructions to give Opus at the start of **every** session:
 
 ### Phase 0 — Scaffold (30 min)
 **Prompt:**
-> Create the repository skeleton exactly as in PLAN.md §3. Add `pyproject.toml` with fastapi, uvicorn, pydantic>=2, anthropic, python-dotenv as runtime deps and pytest, httpx, ruff, mypy, pre-commit as dev deps. Add `.gitignore`, `.env.example` (ANTHROPIC_API_KEY, OCCASIO_MODEL, OCCASIO_AI_ENABLED=true, OCCASIO_DB_PATH), MIT LICENSE, and a minimal README stub. Add a `Makefile` with `install`, `run`, `test`, `lint`, `size` targets (`size` runs `du -sh --exclude=.git .` and `git count-objects -vH`). Initialise git with a single `main` branch. Do not implement logic yet.
+> Create the repository skeleton exactly as in PLAN.md §3. Add `pyproject.toml` with fastapi, uvicorn, pydantic>=2, google-genai, python-dotenv as runtime deps and pytest, httpx, ruff, mypy, pre-commit as dev deps. Add `.gitignore`, `.env.example` (GEMINI_API_KEY, OCCASIO_MODEL, OCCASIO_AI_ENABLED=true, OCCASIO_DB_PATH), MIT LICENSE, and a minimal README stub. Add a `Makefile` with `install`, `run`, `test`, `lint`, `size` targets (`size` runs `du -sh --exclude=.git .` and `git count-objects -vH`). Initialise git with a single `main` branch. Do not implement logic yet.
 
 **Accept when:** `make lint` and `make test` run (zero tests is fine), `git branch` shows only `main`.
 
@@ -145,7 +145,7 @@ General instructions to give Opus at the start of **every** session:
 
 ### Phase 2 — AI layer (~2 h)
 **Prompt:**
-> Implement `src/occasio/ai/`. `client.py`: wraps the `anthropic` SDK; reads model from `OCCASIO_MODEL`; `enabled` is False if no key or `OCCASIO_AI_ENABLED=false`; 20 s timeout, max 2 retries on transient errors, `max_tokens` capped per task; an in-memory LRU cache keyed by a hash of (task, inputs). Verify the current SDK call signature and structured/JSON output approach against https://docs.claude.com before writing it — do not rely on memory.
+> Implement `src/occasio/ai/`. `client.py`: wraps the `google-genai` SDK; reads model from `OCCASIO_MODEL`; `enabled` is False if no key or `OCCASIO_AI_ENABLED=false`; 20 s timeout, `max_tokens` capped per task; an in-memory LRU cache keyed by a hash of (task, inputs). Verify the current SDK call signature and structured/JSON output approach against https://ai.google.dev/ before writing it — do not rely on memory.
 >
 > `prompts.py`: system prompts per task; user-supplied text is always placed inside clearly labelled delimiters and the system prompt states that content inside them is data, not instructions. `schemas.py`: JSON schemas for ideas, intake, explanation. Every LLM response is parsed and validated through Pydantic; on validation failure, log and fall back. `fallback.py`: template-based ideas/explanations derived from the engine `reason` fields so output is still useful with AI off.
 >
@@ -193,7 +193,7 @@ Run and record outputs; put the summary in the README under "Verification":
 - [ ] `ruff check .` and `ruff format --check .` → clean
 - [ ] `pytest -q` → all pass, coverage ≥ 80% on `core/`
 - [ ] Fresh clone + `make install && make run` in a clean venv works
-- [ ] App works with **no** `ANTHROPIC_API_KEY` set
+- [ ] App works with **no** `GEMINI_API_KEY` set
 - [ ] Repository set to public
 
 ---

@@ -10,7 +10,7 @@ FORBIDDEN = (
     "occasio.ai",
     "occasio.api",
     "occasio.storage",
-    "anthropic",
+    "google",
     "fastapi",
     "httpx",
     "requests",

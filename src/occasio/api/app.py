@@ -109,7 +109,7 @@ def create_app(
     app = FastAPI(
         title="Occasio",
         version=__version__,
-        description="Event planning assistant: deterministic engine + optional Claude layer.",
+        description="Event planning assistant: deterministic engine + Google Gemini layer.",
     )
     app.state.settings = settings
     app.state.ai = ai or AIClient.from_settings(settings)
